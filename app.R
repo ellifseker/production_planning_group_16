@@ -1,6 +1,9 @@
 library(shiny)
 library(readxl)
-source("R/moving_average.R")
+
+
+source("R/R/moving_average.R")
+source("R/R/ogrenme.R")
 
 ui <- navbarPage("Production Planning",
   tabPanel("Learning Curve", learning_ui("learning")),
