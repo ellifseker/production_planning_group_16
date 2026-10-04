@@ -1,6 +1,4 @@
 library(shiny)
-library(readxl)
-
 
 source("R/R/moving_average.R")
 source("R/R/ogrenme.R")
