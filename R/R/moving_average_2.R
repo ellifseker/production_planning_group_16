@@ -5,8 +5,9 @@ moving_average_ui <- function(id) {
   tagList(
     sidebarLayout(
       sidebarPanel(
-        # Excel yerine sadece CSV kabul edecek sekilde guncellendi
-        fileInput(ns("file"), "Upload a CSV file (.csv)", accept = c(".csv", "text/csv")),
+        # CSV dosyasını kabul edecek şekilde güncellendi
+        fileInput(ns("file"), "Upload a CSV file (.csv)", 
+                  accept = c(".csv", "text/csv", "text/plain")),
         uiOutput(ns("col_selector")),
         radioButtons(ns("choice_type"), "How should N be chosen?",
                      choices = c("I will choose N" = "manual", "Find the best N" = "auto")),
@@ -36,10 +37,15 @@ moving_average_ui <- function(id) {
 moving_average_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     
-    # readxl kaldirildi, yalnizca R'in temel read.csv fonksiyonu kullanildi
+    # R'ın temel read.csv fonksiyonu kullanılır, harici kütüphane gerektirmez
     data_input <- reactive({
       req(input[["file"]])
-      read.csv(input[["file"]][["datapath"]], stringsAsFactors = FALSE)
+      tryCatch({
+        read.csv(input[["file"]][["datapath"]], stringsAsFactors = FALSE)
+      }, error = function(e) {
+        # Noktalı virgülle ayrılmış yerel CSV'ler için alternatif deneme
+        read.csv2(input[["file"]][["datapath"]], stringsAsFactors = FALSE)
+      })
     })
     
     output[["col_selector"]] <- renderUI({
@@ -190,3 +196,4 @@ moving_average_server <- function(id) {
     
   })
 }
+    
