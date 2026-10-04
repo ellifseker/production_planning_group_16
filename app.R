@@ -1,6 +1,6 @@
 library(shiny)
 
-source("R/R/moving_average.R")
+source("R/R/moving_average_2.R")
 source("R/R/ogrenme.R")
 
 ui <- navbarPage("Production Planning",
