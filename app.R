@@ -1,5 +1,6 @@
 
 library(shiny)
+library(forecast)
 
 # Mevcut modüller
 source("R/R/moving_average.R")
