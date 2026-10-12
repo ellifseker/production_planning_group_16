@@ -1,3 +1,9 @@
+# holt_method dosyasının en üstüne eklenebilir:
+if(!require(forecast)) {
+  install.packages("forecast")
+  library(forecast)
+}
+
 # Modül: Holt Metodu için Optimum Alfa ve Beta Bulucu
 # Eğer yüklü değilse konsola şunu yazın: install.packages("forecast")
 library(forecast)
