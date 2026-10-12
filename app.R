@@ -1,8 +1,4 @@
-# app.R dosyasının EN BAŞINA ekleyin (library çağırmalarından önce)
-if(!require(forecast)) install.packages("forecast", repos = "http://cran.us.r-project.org")
-library(shiny)
-library(forecast) # Mutlaka app.R'da da çağırın
-# ... diğer kaynaklar (source) ...
+
 library(shiny)
 
 # Mevcut modüller
