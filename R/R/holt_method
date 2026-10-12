@@ -1,0 +1,66 @@
+# Modül: Holt Metodu için Optimum Alfa ve Beta Bulucu
+# Eğer yüklü değilse konsola şunu yazın: install.packages("forecast")
+library(forecast)
+
+find_optimal_holt_params <- function(data_vector) {
+  # 1. Veriyi zaman serisi (ts) nesnesine dönüştürme
+  ts_data <- ts(data_vector)
+  
+  # 2. Holt modelini uygulama
+  # forecast::holt() fonksiyonu, MLE (Maksimum Olabilirlik) veya hata kareleri 
+  # toplamını minimize ederek optimum alfa ve betayı otomatik bulur.
+  holt_model <- holt(ts_data)
+  
+  # 3. Optimum parametreleri nesneden çekme
+  best_alpha <- holt_model$model$par["alpha"]
+  best_beta  <- holt_model$model$par["beta"]
+  
+  # 4. Slaytlardaki gibi Ortalama Mutlak Sapma (MAD/MAE) değerini hesaplama
+  acc <- accuracy(holt_model)
+  mad_value <- acc[1, "MAE"] # MAE (Mean Absolute Error), MAD ile aynı metriktir.
+  
+  # 5. Parametre Yorumlama Mantığı
+  yorum_alfa <- ifelse(best_alpha > 0.5,
+                       "Alfa Yüksek (>0.5): Model güncel talebe çok hızlı tepki veriyor, geçmişi çabuk unutuyor.",
+                       "Alfa Düşük (<0.5): Model geçmiş verilere güveniyor, seviye (level) güncellemeleri yavaş ve stabil.")
+  
+  yorum_beta <- ifelse(best_beta > 0.5,
+                       "Beta Yüksek (>0.5): Trend (eğim) son değişimlere anında uyum sağlıyor. Çok dinamik bir trend var.",
+                       "Beta Düşük (<0.5): Trend değişimi yavaş, uzun vadeli büyüme/küçülme paterni korunuyor.")
+  
+  # 6. Konsol Çıktıları
+  cat("=== OPTİMİZASYON SONUÇLARI ===\n")
+  cat(sprintf("Optimum \u03b1 (Alfa - Seviye): %.4f\n", best_alpha))
+  cat(sprintf("Optimum \u03b2 (Beta - Trend) : %.4f\n", best_beta))
+  cat(sprintf("Minimum MAD (Ort. Sapma) : %.4f\n\n", mad_value))
+  
+  cat("=== VERİ VE MODEL YORUMU ===\n")
+  cat("-", yorum_alfa, "\n")
+  cat("-", yorum_beta, "\n\n")
+  
+  # 7. Posit/RStudio Grafik Çıktısı (Plots sekmesinde görüntülenir)
+  plot(holt_model, main="Holt Tahmini ve Gerçek Veri Karşılaştırması",
+       ylab="Talep / Veri Değeri", xlab="Zaman", flty=2)
+  lines(holt_model$fitted, col="red", lwd=2)
+  legend("topleft", legend=c("Gerçek Veri", "Model Uyumu (Fitted)"), 
+         col=c("black", "red"), lty=1, lwd=c(1, 2))
+  
+  # 8. Diğer kodlarda modül olarak kullanılabilmesi için list döndürme
+  invisible(list(
+    alpha = as.numeric(best_alpha),
+    beta  = as.numeric(best_beta),
+    mad   = as.numeric(mad_value),
+    model = holt_model
+  ))
+}
+
+# ---------------------------------------------------------
+# KULLANIM ÖRNEĞİ
+# Bu dosyayı source() ile ana kodunuza çağırdıktan sonra:
+#
+# ornek_veri <- c(200, 250, 175, 186, 225, 285, 305, 190)
+# holt_sonuclari <- find_optimal_holt_params(ornek_veri)
+#
+# # Başka bir fonksiyonda sadece beta değerini kullanmak isterseniz:
+# # print(holt_sonuclari$beta)
+# ---------------------------------------------------------
