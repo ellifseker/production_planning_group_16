@@ -4,6 +4,7 @@ library(shiny)
 # Mevcut modüller
 source("R/R/moving_average.R")
 source("R/R/ogrenme.R")
+source("R/R/holt_method")
 
 # Yeni eklediğimiz Holt modülünü kaynak olarak gösteriyoruz
 # Dosyanızın adının tam olarak "holt_method" veya "holt_method.R" olmasına göre uzantıyı ayarlayın.
