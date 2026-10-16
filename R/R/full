@@ -1,0 +1,259 @@
+###############################################################################
+#  ZAMAN SERİSİ TAHMİNİ (FORECASTING) - RStudio için tam script
+#  Konular: Moving Average, WMA, Exponential Smoothing, Quick & Dirty (Seasonal
+#  Factors), Holt, Seasonal Decomposition, Winters, ACF/PACF, auto.arima, AIC
+#
+#  KULLANIM: Sadece "1. VERİ" bölümünü kendi verinle değiştir, gerisi çalışır.
+###############################################################################
+
+# ============================================================================
+# 0. PAKETLER
+# ============================================================================
+pkgs <- c("forecast", "TTR", "tseries", "ggplot2")
+for (p in pkgs) {
+  if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
+}
+invisible(lapply(pkgs, library, character.only = TRUE))
+
+# ============================================================================
+# 1. VERİ  (kendi verinle değiştir)
+# ============================================================================
+# Örnek: CSV'den okuma
+#   df <- read.csv("veri.csv")
+#   y  <- ts(df$satis, start = c(2020, 1), frequency = 12)
+y    <- AirPassengers      # örnek veri: aylık, trend + mevsimsellik var
+freq <- frequency(y)       # 12 = aylık, 4 = çeyreklik
+h    <- 12                 # test / tahmin ufku (kaç dönem)
+
+cat("\n===== VERİ ÖZETİ =====\n")
+print(summary(y))
+cat("Gözlem sayısı:", length(y), " | Frekans:", freq, "\n")
+cat("Eksik değer sayısı:", sum(is.na(y)), "\n")
+
+# ============================================================================
+# 2. KEŞİFSEL ANALİZ
+# ============================================================================
+plot(y, main = "Zaman Serisi", ylab = "Değer", xlab = "Zaman", col = "steelblue", lwd = 2)
+
+# Mevsimsellik grafikleri (frekans > 1 ise)
+if (freq > 1) {
+  seasonplot(y, year.labels = TRUE, main = "Seasonal Plot", col = rainbow(12))
+  monthplot(y, main = "Dönem bazında ortalama (monthplot)")
+}
+
+# Mevsimsel ayrıştırma (decomposition)
+dec_mult <- decompose(y, type = "multiplicative")
+dec_add  <- decompose(y, type = "additive")
+plot(dec_mult)
+cat("\n===== MEVSİMSEL KATSAYILAR (multiplicative) =====\n")
+print(round(dec_mult$figure, 4))
+
+# Mevsimsel dalgalanma trendle büyüyorsa çarpımsal (multiplicative) seçilir.
+# STL ile de bak:
+plot(stl(y, s.window = "periodic"), main = "STL Ayrıştırma")
+
+# ============================================================================
+# 3. DURAĞANLIK ANALİZİ
+# ============================================================================
+cat("\n===== DURAĞANLIK TESTLERİ =====\n")
+cat("ADF testi (p < 0.05 -> durağan):\n")
+print(adf.test(y))
+cat("KPSS testi (p > 0.05 -> durağan):\n")
+print(kpss.test(y))
+
+cat("Gerekli normal fark sayısı (d):", ndiffs(y), "\n")
+if (freq > 1) cat("Gerekli mevsimsel fark sayısı (D):", nsdiffs(y), "\n")
+
+y_diff <- diff(y)
+y_sdiff <- if (freq > 1) diff(y_diff, lag = freq) else y_diff
+
+par(mfrow = c(2, 2))
+Acf(y,       main = "ACF - orijinal")
+Pacf(y,      main = "PACF - orijinal")
+Acf(y_sdiff, main = "ACF - fark alinmis")
+Pacf(y_sdiff, main = "PACF - fark alinmis")
+par(mfrow = c(1, 1))
+
+cat("ADF (fark alınmış seri):\n")
+print(adf.test(y_sdiff))
+
+# ============================================================================
+# 4. TRAIN / TEST AYRIMI
+# ============================================================================
+n     <- length(y)
+train <- window(y, end   = time(y)[n - h])
+test  <- window(y, start = time(y)[n - h + 1])
+cat("\nTrain:", length(train), "gözlem | Test:", length(test), "gözlem\n")
+
+# Hata metrikleri için yardımcı fonksiyon
+metrics <- function(actual, pred) {
+  actual <- as.numeric(actual); pred <- as.numeric(pred)
+  e <- actual - pred
+  data.frame(
+    ME   = mean(e),
+    MAE  = mean(abs(e)),
+    MSE  = mean(e^2),
+    RMSE = sqrt(mean(e^2)),
+    MAPE = mean(abs(e / actual)) * 100
+  )
+}
+
+preds <- list()   # tüm modellerin test tahminleri burada toplanacak
+
+# ============================================================================
+# 5. DURAĞAN SERİ YÖNTEMLERİ
+# ============================================================================
+
+# ---- 5.1 Moving Average (k = 3, 5) ----
+for (k in c(3, 5)) {
+  ma <- SMA(train, n = k)
+  preds[[paste0("MA(", k, ")")]] <- rep(tail(ma, 1), h)   # düz (flat) tahmin
+}
+
+# ---- 5.2 Weighted Moving Average (WMA) ----
+w <- c(0.2, 0.3, 0.5)                      # ağırlıklar toplamı 1, en yeni en büyük
+wma <- WMA(train, n = length(w), wts = w)
+preds[["WMA(3)"]] <- rep(tail(wma, 1), h)
+
+# ---- 5.3 Simple Exponential Smoothing ----
+fit_ses_fix <- ses(train, h = h, alpha = 0.3)   # sabit alpha
+fit_ses_opt <- ses(train, h = h)                # alpha en iyi şekilde tahmin edilir
+cat("\nSES optimal alpha:", round(fit_ses_opt$model$par["alpha"], 4), "\n")
+preds[["SES(alpha=0.3)"]] <- fit_ses_fix$mean
+preds[["SES(optimal)"]]   <- fit_ses_opt$mean
+
+# ============================================================================
+# 6. TREND İÇİN: HOLT YÖNTEMİ
+# ============================================================================
+fit_holt   <- holt(train, h = h)
+fit_holt_d <- holt(train, h = h, damped = TRUE)   # sönümlü trend
+cat("Holt alpha/beta:", round(fit_holt$model$par[c("alpha", "beta")], 4), "\n")
+preds[["Holt"]]         <- fit_holt$mean
+preds[["Holt (damped)"]] <- fit_holt_d$mean
+
+# ============================================================================
+# 7. MEVSİMSEL YÖNTEMLER
+# ============================================================================
+
+# ---- 7.1 Quick & Dirty: Seasonal Factors + doğrusal trend ----
+# Adımlar: (1) mevsimsel katsayıları bul, (2) seriyi mevsimsellikten arındır,
+# (3) arındırılmış seriye doğrusal trend uydur, (4) tahmini katsayıyla çarp
+dec_tr   <- decompose(train, type = "multiplicative")
+sf       <- dec_tr$figure                              # mevsimsel katsayılar
+deseas   <- train / dec_tr$seasonal                    # mevsimsellikten arındırılmış
+t_idx    <- seq_along(deseas)
+lm_trend <- lm(as.numeric(deseas) ~ t_idx)
+t_new    <- length(train) + seq_len(h)
+trend_f  <- predict(lm_trend, newdata = data.frame(t_idx = t_new))
+sf_new   <- sf[((t_new - 1) %% freq) + 1]
+preds[["Quick&Dirty (SF + trend)"]] <- trend_f * sf_new
+
+# ---- 7.2 Seasonal Decomposition ile tahmin (STL + ETS) ----
+fit_stlf <- stlf(train, h = h, method = "ets")
+preds[["Decomposition (STL+ETS)"]] <- fit_stlf$mean
+
+# ---- 7.3 Winters Yöntemi (Holt-Winters) ----
+fit_hw_add  <- hw(train, h = h, seasonal = "additive")
+fit_hw_mult <- hw(train, h = h, seasonal = "multiplicative")
+cat("Winters (mult) alpha/beta/gamma:",
+    round(fit_hw_mult$model$par[c("alpha", "beta", "gamma")], 4), "\n")
+preds[["Winters (additive)"]]       <- fit_hw_add$mean
+preds[["Winters (multiplicative)"]] <- fit_hw_mult$mean
+
+# ---- 7.4 Otomatik ETS ----
+fit_ets <- ets(train)
+cat("Seçilen ETS modeli:", fit_ets$method, "\n")
+preds[["ETS (auto)"]] <- forecast(fit_ets, h = h)$mean
+
+# ============================================================================
+# 8. auto.arima
+# ============================================================================
+fit_arima <- auto.arima(train, stepwise = FALSE, approximation = FALSE)
+cat("\n===== auto.arima SONUCU =====\n")
+print(summary(fit_arima))
+
+# Artık (residual) kontrolü: Ljung-Box p > 0.05 -> artıklar beyaz gürültü (iyi)
+checkresiduals(fit_arima)
+
+f_arima <- forecast(fit_arima, h = h)
+preds[["auto.arima"]] <- f_arima$mean
+
+# ============================================================================
+# 9. MODEL KARŞILAŞTIRMASI (TEST SETİ)
+# ============================================================================
+results <- do.call(rbind, lapply(names(preds), function(nm) {
+  cbind(Model = nm, metrics(test, preds[[nm]]))
+}))
+results <- results[order(results$RMSE), ]
+rownames(results) <- NULL
+
+cat("\n===== TEST SETİ HATA KARŞILAŞTIRMASI (RMSE'ye göre sıralı) =====\n")
+print(format(results, digits = 4, nsmall = 2))
+best_model <- results$Model[1]
+cat("\nEn iyi model (RMSE):", best_model, "\n")
+
+# ============================================================================
+# 10. AIC / AICc / BIC KARŞILAŞTIRMASI (model tabanlı yöntemler)
+# ============================================================================
+ic <- data.frame(
+  Model = c("SES", "Holt", "Winters (add)", "Winters (mult)", "ETS (auto)", "auto.arima"),
+  AIC   = c(fit_ses_opt$model$aic,  fit_holt$model$aic,  fit_hw_add$model$aic,
+            fit_hw_mult$model$aic,  fit_ets$aic,         fit_arima$aic),
+  AICc  = c(fit_ses_opt$model$aicc, fit_holt$model$aicc, fit_hw_add$model$aicc,
+            fit_hw_mult$model$aicc, fit_ets$aicc,        fit_arima$aicc),
+  BIC   = c(fit_ses_opt$model$bic,  fit_holt$model$bic,  fit_hw_add$model$bic,
+            fit_hw_mult$model$bic,  fit_ets$bic,         fit_arima$bic)
+)
+cat("\n===== BİLGİ KRİTERLERİ (küçük = iyi) =====\n")
+print(format(ic[order(ic$AICc), ], digits = 6), row.names = FALSE)
+# NOT: ETS ve ARIMA AIC değerleri birbiriyle birebir kıyaslanamaz (farklı
+# olabilirlik yapıları). Kıyaslama için test seti hatalarını (bölüm 9) kullan.
+
+# ============================================================================
+# 11. GRAFİKLER
+# ============================================================================
+# 11.1 Seçilmiş modellerin test dönemi karşılaştırması
+sel <- c("Holt", "Winters (multiplicative)", "Quick&Dirty (SF + trend)", "auto.arima")
+df_plot <- data.frame(
+  Zaman = rep(as.numeric(time(test)), length(sel) + 1),
+  Deger = c(as.numeric(test), unlist(lapply(sel, function(s) as.numeric(preds[[s]])))),
+  Seri  = rep(c("Gerçek", sel), each = length(test))
+)
+print(
+  ggplot() +
+    geom_line(data = data.frame(Zaman = as.numeric(time(train)), Deger = as.numeric(train)),
+              aes(Zaman, Deger), colour = "grey40") +
+    geom_line(data = df_plot, aes(Zaman, Deger, colour = Seri,
+                                  linewidth = Seri == "Gerçek")) +
+    scale_linewidth_manual(values = c(`TRUE` = 1.3, `FALSE` = 0.8), guide = "none") +
+    labs(title = "Test Dönemi: Gerçek vs Tahminler", x = "Zaman", y = "Değer") +
+    theme_minimal()
+)
+
+# 11.2 Hata çubuk grafiği
+barplot(results$RMSE, names.arg = results$Model, las = 2, cex.names = 0.7,
+        col = "steelblue", main = "Model RMSE Karşılaştırması", ylab = "RMSE")
+
+# ============================================================================
+# 12. EN İYİ MODELLE GELECEK TAHMİNİ (tüm veriyle yeniden kur)
+# ============================================================================
+final_arima <- forecast(auto.arima(y, stepwise = FALSE, approximation = FALSE), h = h)
+final_hw    <- hw(y, h = h, seasonal = "multiplicative")
+
+par(mfrow = c(2, 1))
+plot(final_arima, main = "auto.arima - Gelecek Tahmini")
+plot(final_hw,    main = "Winters (multiplicative) - Gelecek Tahmini")
+par(mfrow = c(1, 1))
+
+cat("\n===== GELECEK TAHMİNLERİ (auto.arima, %80 ve %95 aralık) =====\n")
+print(final_arima)
+cat("\n===== GELECEK TAHMİNLERİ (Winters) =====\n")
+print(final_hw)
+
+# ============================================================================
+# 13. SONUÇLARI KAYDET
+# ============================================================================
+write.csv(results, "model_karsilastirma.csv", row.names = FALSE)
+write.csv(as.data.frame(final_arima), "gelecek_tahmin_arima.csv")
+write.csv(as.data.frame(final_hw),    "gelecek_tahmin_winters.csv")
+cat("\nCSV dosyaları çalışma dizinine kaydedildi:", getwd(), "\n")
