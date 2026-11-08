@@ -2,7 +2,7 @@ library(shiny)
 
 ui <- navbarPage("Production Planning",
                  # Learning Curve Module (Eksik olan satır buradaydı)
-                 tabPanel("Learning Curve", learning_curve_ui("learning_curve")),
+                 tabPanel("Learning Curve", learning_curve("learning_curve")),
                  
                  # Grouped Forecasting Module (Stationary, Trend & Seasonal, Time Series / ARIMA)
                  navbarMenu("Forecasting",
@@ -14,7 +14,7 @@ ui <- navbarPage("Production Planning",
 
 server <- function(input, output, session) {
   # Server call for Learning Curve
-  learning_curve_server("learning_curve")
+  learning_server("learning_curve")
   
   # Forecasting server calls
   forecast_stationary_server("fc_stat")
