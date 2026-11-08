@@ -1,4 +1,5 @@
 library(shiny)
+source("R/ogrenme.R")
 
 ui <- navbarPage("Production Planning",
                  # Learning Curve Module (Eksik olan satır buradaydı)
