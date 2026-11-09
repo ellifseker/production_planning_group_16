@@ -9,6 +9,10 @@ forecast_timeseries_ui <- function(id) {
     sidebarPanel(
       h4("3. Time Series / Box-Jenkins"),
       fileInput(ns("file"), "Upload Data (.xlsx or .csv)", accept = c(".xlsx", ".xls", ".csv")),
+      
+      # KULLANICI İÇİN BİLGİLENDİRME NOTU EKLENDİ
+      helpText(strong("Note:"), "The 2nd column in your uploaded file will be automatically detected and used as the Demand column."),
+      
       uiOutput(ns("col_ui")),
       helpText("Note: If no file is uploaded, the built-in AirPassengers monthly dataset is used as default."),
       hr(),
@@ -104,10 +108,17 @@ forecast_timeseries_server <- function(id) {
       }
     })
     
+    # KOD BURADA GÜNCELLENDİ: 2. SÜTUN OTOMATİK SEÇİLİYOR
     output$col_ui <- renderUI({
       df <- raw_data()
       num_cols <- names(df)[sapply(df, is.numeric)]
-      selectInput(ns("col"), "Select Series (Demand Column):", choices = num_cols)
+      
+      # 2. sütunu bul, yoksa ilk numerik sütunu kullan
+      default_col <- if (ncol(df) >= 2 && names(df)[2] %in% num_cols) names(df)[2] else num_cols[1]
+      
+      selectInput(ns("col"), "Select Series (Demand Column):", 
+                  choices = num_cols, 
+                  selected = default_col)
     })
     
     ts_obj <- reactive({

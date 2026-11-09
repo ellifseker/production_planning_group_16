@@ -7,6 +7,10 @@ forecast_stationary_ui <- function(id) {
     sidebarPanel(
       h4("1. Stationary Series Forecasting"),
       fileInput(ns("file"), "Upload Data (.xlsx or .csv)", accept = c(".xlsx", ".xls", ".csv")),
+      
+      # KULLANICI İÇİN BİLGİLENDİRME NOTU EKLENDİ
+      helpText(strong("Note:"), "The 2nd column in your uploaded file will be automatically detected and used as the Demand column."),
+      
       uiOutput(ns("col_ui")),
       hr(),
       
@@ -111,10 +115,17 @@ forecast_stationary_server <- function(id) {
       }
     })
     
+    # KOD BURADA GÜNCELLENDİ: 2. SÜTUN OTOMATİK SEÇİLİYOR
     output$col_ui <- renderUI({
       df <- raw_data()
       num_cols <- names(df)[sapply(df, is.numeric)]
-      selectInput(ns("col"), "Select Series (Demand Column):", choices = num_cols)
+      
+      # 2. sütunu bul, yoksa ilk numerik sütunu kullan
+      default_col <- if (ncol(df) >= 2 && names(df)[2] %in% num_cols) names(df)[2] else num_cols[1]
+      
+      selectInput(ns("col"), "Select Series (Demand Column):", 
+                  choices = num_cols, 
+                  selected = default_col)
     })
     
     # Helper to check significant trend via simple linear regression
@@ -310,55 +321,63 @@ forecast_stationary_server <- function(id) {
     
     output$title_text <- renderText({
       res <- res_data()
-      paste0(res$label, " — Next-period forecast: ", round(res$f_next[1], 2))
-    })
-    
-    output$model_info <- renderUI({
-      res <- res_data()
-      wellPanel(strong("Model Summary: "), res$info)
+      paste("Forecast Results:", res$label)
     })
     
     output$plot <- renderPlot({
       res <- res_data()
-      n <- length(res$d); h <- res$h
-      all_y <- c(res$d, res$f, res$f_next)
-      plot(1:n, res$d, type = "o", pch = 16, col = "black", lwd = 1.8,
-           xlim = c(1, n + h), ylim = range(all_y, na.rm = TRUE),
-           xlab = "Period", ylab = "Demand",
-           main = paste0("Actual Demand and ", res$label, " Forecast"))
-      grid()
-      lines(1:n, res$f, type = "o", pch = 16, col = "steelblue", lty = 2, lwd = 1.8)
-      lines((n + 1):(n + h), res$f_next, type = "o", pch = 17, col = "red3", lty = 2, lwd = 2, cex = 1.3)
-      legend("topleft", legend = c("Actual demand", "Forecast", "Next-period forecast"),
-             col = c("black", "steelblue", "red3"), pch = c(16, 16, 17), lty = c(1, 2, 2), bty = "n")
+      d <- res$d; f <- res$f; f_next <- res$f_next
+      n <- length(d)
+      h <- length(f_next)
+      
+      t_all <- 1:(n + h)
+      y_max <- max(c(d, f, f_next), na.rm = TRUE)
+      y_min <- min(c(d, f, f_next), na.rm = TRUE)
+      
+      plot(1:n, d, type = "o", pch = 16, col = "black", lwd = 2,
+           xlim = c(1, n + h), ylim = c(y_min, y_max),
+           xlab = "Period", ylab = "Demand", main = "Actual vs. Forecast")
+      
+      lines(1:n, f, col = "blue", lwd = 2, lty = 2)
+      lines((n + 1):(n + h), f_next, col = "red", lwd = 2, type = "o", pch = 17)
+      
+      legend("topleft", legend = c("Actual Demand", "Fitted Forecast", paste(h, "Period(s) Ahead Forecast")),
+             col = c("black", "blue", "red"), lwd = 2, lty = c(1, 2, 1), pch = c(16, NA, 17))
+    })
+    
+    output$model_info <- renderUI({
+      res <- res_data()
+      div(style = "background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+          strong("Model Details: "), res$info)
     })
     
     output$err_table <- renderTable({
       res <- res_data()
-      idx <- which(!is.na(res$d) & !is.na(res$f))
-      e <- res$f[idx] - res$d[idx]
-      per <- paste0(min(idx), "–", max(idx))
-      data.frame(
-        Measure = c("MAD", "MSE", "MAPE (%)"),
-        Value = round(c(mean(abs(e)), mean(e^2), mean(abs(e / res$d[idx])) * 100), 2),
-        `Periods evaluated` = rep(per, 3),
-        check.names = FALSE
-      )
-    })
+      d <- res$d; f <- res$f
+      idx <- which(!is.na(d) & !is.na(f))
+      if (length(idx) == 0) return(NULL)
+      e <- d[idx] - f[idx]
+      mad <- mean(abs(e))
+      mse <- mean(e^2)
+      mape <- mean(abs(e / d[idx])) * 100
+      data.frame(Metric = c("MAD", "MSE", "MAPE (%)"),
+                 Value = c(round(mad, 2), round(mse, 2), round(mape, 2)))
+    }, width = "100%")
     
     output$period_table <- renderTable({
       res <- res_data()
-      n <- length(res$d); h <- res$h
-      d_all <- c(res$d, rep(NA, h))
-      f_all <- c(res$f, res$f_next)
-      e_all <- f_all - d_all
-      data.frame(
+      d <- res$d; f <- res$f; f_next <- res$f_next
+      n <- length(d); h <- length(f_next)
+      df <- data.frame(
         Period = 1:(n + h),
-        `Demand (D)` = round(d_all, 2),
-        `Forecast (F)` = round(f_all, 2),
-        `Error (e = F - D)` = round(e_all, 2),
-        check.names = FALSE
+        Actual = c(d, rep(NA, h)),
+        Forecast = c(f, f_next)
       )
-    }, na = "")
+      df$Error <- df$Actual - df$Forecast
+      df$`Abs Error` <- abs(df$Error)
+      df$`Pct Error (%)` <- (df$`Abs Error` / df$Actual) * 100
+      df
+    }, digits = 2, width = "100%", striped = TRUE, hover = TRUE, na = "-")
+    
   })
 }
