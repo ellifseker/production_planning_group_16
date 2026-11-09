@@ -148,8 +148,10 @@ forecast_stationary_server <- function(id) {
     }
     
     res_data <- reactive({
-      req(input$col)
-      d <- as.numeric(na.omit(raw_data()[[input$col]]))
+      df <- raw_data()
+      num_cols <- names(df)[sapply(df, is.numeric)]
+      hedef_sutun <- if (ncol(df) >= 2 && names(df)[2] %in% num_cols) names(df)[2] else num_cols[1]
+      d <- as.numeric(na.omit(df[[hedef_sutun]]))
       n <- length(d)
       validate(need(n >= 3, "Error: Dataset must contain at least 3 numeric observations."))
       

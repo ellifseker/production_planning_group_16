@@ -122,8 +122,10 @@ forecast_timeseries_server <- function(id) {
     })
     
     ts_obj <- reactive({
-      req(input$col)
-      v <- as.numeric(na.omit(raw_data()[[input$col]]))
+      df <- raw_data()
+      num_cols <- names(df)[sapply(df, is.numeric)]
+      hedef_sutun <- if (ncol(df) >= 2 && names(df)[2] %in% num_cols) names(df)[2] else num_cols[1]
+      v <- as.numeric(na.omit(df[[hedef_sutun]]))
       ts(v, frequency = max(1, as.numeric(input$freq)))
     })
     
