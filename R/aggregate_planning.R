@@ -15,7 +15,7 @@ aggregate_planning_ui <- function(id) {
       fileInput(ns("file"), "Upload Data (.xlsx or .csv)", accept = c(".xlsx", ".xls", ".csv")),
       
       # FORECASTING MODÜLÜNDEKİ GİBİ NOT EKLENDİ
-      helpText(strong("Note:"), "The uploaded file must follow this column format: Period | Demand | Working Days."),
+      helpText(strong("Note:"), "The first three columns of your uploaded file will be automatically detected as Period, Demand, and Working Days, respectively."),
       
       hr(),
       

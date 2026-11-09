@@ -7,11 +7,16 @@ source("R/aggregate_planning.R")
 
 ui <- navbarPage("Production Planning",
                  tabPanel("Learning Curve", learning_ui("learning_curve")),
-                 navbarMenu("Forecasting",
-                            tabPanel("1. Stationary Series", forecast_stationary_ui("fc_stat")),
-                            tabPanel("2. Trend & Seasonal", forecast_trend_ui("fc_trend")),
-                            tabPanel("3. Time Series / ARIMA", forecast_timeseries_ui("fc_ts"))
+                 
+                 # FORECASTING KISMI DÜZELTİLDİ: Açılır menü (navbarMenu) yerine sayfa içi sekmeler (tabsetPanel) yapıldı
+                 tabPanel("Forecasting",
+                          tabsetPanel(
+                            tabPanel("1. Stationary Series", br(), forecast_stationary_ui("fc_stat")),
+                            tabPanel("2. Trend & Seasonal", br(), forecast_trend_ui("fc_trend")),
+                            tabPanel("3. Time Series / ARIMA", br(), forecast_timeseries_ui("fc_ts"))
+                          )
                  ),
+                 
                  tabPanel("Aggregate Planning", aggregate_planning_ui("ap_module"))
 )
 
