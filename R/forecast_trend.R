@@ -11,7 +11,7 @@ forecast_trend_ui <- function(id) {
       # KULLANICI İÇİN BİLGİLENDİRME NOTU EKLENDİ
       helpText(strong("Note:"), "The 2nd column in your uploaded file will be automatically detected and used as the Demand column."),
       
-      uiOutput(ns("col_ui")),
+      
       hr(),
       
       selectInput(ns("method"), "Select Forecasting Method:",

@@ -13,7 +13,7 @@ forecast_timeseries_ui <- function(id) {
       # KULLANICI İÇİN BİLGİLENDİRME NOTU EKLENDİ
       helpText(strong("Note:"), "The 2nd column in your uploaded file will be automatically detected and used as the Demand column."),
       
-      uiOutput(ns("col_ui")),
+      
       helpText("Note: If no file is uploaded, the built-in AirPassengers monthly dataset is used as default."),
       hr(),
       
