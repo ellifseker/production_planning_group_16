@@ -12,7 +12,12 @@ aggregate_planning_ui <- function(id) {
   sidebarLayout(
     sidebarPanel(
       h4("Aggregate Planning Inputs"),
-      fileInput(ns("file"), "Upload Data (.xlsx or .csv)\n(Format: Period | Demand | Working Days)", accept = c(".xlsx", ".xls", ".csv")),
+      fileInput(ns("file"), "Upload Data (.xlsx or .csv)", accept = c(".xlsx", ".xls", ".csv")),
+      
+      # FORECASTING MODÜLÜNDEKİ GİBİ NOT EKLENDİ
+      helpText(strong("Note:"), "The uploaded file must follow this column format: Period | Demand | Working Days."),
+      
+      hr(),
       
       h5("Unit Costs"),
       fluidRow(
